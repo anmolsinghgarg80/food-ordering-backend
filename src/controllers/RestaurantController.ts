@@ -1,6 +1,54 @@
 import { Request, Response } from "express";
 import Restaurant from "../models/restaurant";
 
+const getRestaurant = async (req: Request, res: Response) => {
+  try {
+    const restaurantId = req.params.restaurantId;
+
+    const restaurant = await Restaurant.findById(restaurantId);
+    if (!restaurant) {
+      res.status(404).json({ message: "Could not get the Restaurant" });
+      return;
+    }
+    res.json(restaurant);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+const getAllRestaurants = async (req: Request, res: Response) => {
+  try{
+    const sortOption = (req.query.sortOption as string) || "lastUpdated";
+    const page = parseInt(req.query.page as string) || 1;
+
+    const pageSize = 10;
+    const skip = (page - 1) * pageSize;
+
+    const restaurants = await Restaurant.find()
+      .sort({ [sortOption]: 1 })
+      .skip(skip)
+      .limit(pageSize)
+      .lean();
+
+    const total = await Restaurant.countDocuments();
+
+    const response = {
+      data: restaurants,
+      pagination: {
+        total,
+        page,
+        pages: Math.ceil(total / pageSize),
+      },
+    };
+
+    res.json(response);
+  }catch(error){
+    console.log(error);
+    res.status(500).json({message: "Something went wrong"});
+  }
+}
+
 const searchRestaurant = async (req: Request, res: Response) => {
   try {
     const city = req.params.city;
@@ -29,9 +77,9 @@ const searchRestaurant = async (req: Request, res: Response) => {
     if (selectedCuisines) {
       const cuisinesArray = selectedCuisines
         .split(",")
-        .map((cuisines) => new RegExp(cuisines, "i"));
+        .map((cuisine) => ({ cuisines: new RegExp(cuisine.trim(), "i") })); // Wrap in an object
 
-      query["cuisines"] = { $all: cuisinesArray };
+      query["$or"] = cuisinesArray; // Correct use of $or
     }
 
     if (searchQuery) {
@@ -70,5 +118,7 @@ const searchRestaurant = async (req: Request, res: Response) => {
 };
 
 export default {
+  getRestaurant,
+  getAllRestaurants,
   searchRestaurant,
 };
